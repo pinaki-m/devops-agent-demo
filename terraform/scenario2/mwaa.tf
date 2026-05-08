@@ -114,9 +114,8 @@ resource "aws_iam_role_policy" "mwaa" {
 resource "aws_mwaa_environment" "main" {
   name               = local.name_prefix
   airflow_version    = "2.10.3"
-  environment_class  = var.mwaa_environment_class
-  max_workers        = var.mwaa_max_workers
-  min_workers        = 1
+  min_webservers     = 1
+  max_webservers     = var.mwaa_max_webservers
   execution_role_arn = aws_iam_role.mwaa.arn
 
   source_bucket_arn    = aws_s3_bucket.mwaa.arn

@@ -23,14 +23,8 @@ variable "private_subnet_ids" {
   type        = list(string)
 }
 
-variable "mwaa_environment_class" {
-  description = "MWAA environment class"
-  type        = string
-  default     = "mw1.small"
-}
-
-variable "mwaa_max_workers" {
-  description = "MWAA max worker count"
+variable "mwaa_max_webservers" {
+  description = "MWAA Serverless max webserver count"
   type        = number
   default     = 2
 }
