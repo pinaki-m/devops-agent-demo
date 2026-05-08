@@ -24,7 +24,7 @@ variable "private_subnet_ids" {
 }
 
 variable "mwaa_max_webservers" {
-  description = "MWAA Serverless max webserver count"
+  description = "MWAA max webserver count (mw1.small requires >= 2)"
   type        = number
   default     = 2
 }

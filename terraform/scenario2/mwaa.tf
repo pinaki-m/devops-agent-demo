@@ -114,7 +114,8 @@ resource "aws_iam_role_policy" "mwaa" {
 resource "aws_mwaa_environment" "main" {
   name               = local.name_prefix
   airflow_version    = "2.10.3"
-  min_webservers     = 1
+  environment_class  = "mw1.small"
+  min_webservers     = 2
   max_webservers     = var.mwaa_max_webservers
   execution_role_arn = aws_iam_role.mwaa.arn
 
