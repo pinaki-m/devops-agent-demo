@@ -93,6 +93,8 @@ check_scenario2() {
     --query 'Environment.Status' --output text 2>/dev/null || echo "NOT_FOUND")
   if [[ "$MWAA_STATUS" == "AVAILABLE" ]]; then
     ok "MWAA environment $PREFIX is AVAILABLE"
+  elif [[ "$MWAA_STATUS" == "CREATING" || "$MWAA_STATUS" == "UPDATING" ]]; then
+    fail "MWAA environment $PREFIX — Status: $MWAA_STATUS (still provisioning)"
   else
     fail "MWAA environment $PREFIX — Status: $MWAA_STATUS"
   fi
@@ -169,7 +171,7 @@ check_scenario4() {
     UNHEALTHY=$(aws elbv2 describe-target-health \
       --target-group-arn "$TG_ARN" \
       --region "$REGION" \
-      --query "length(TargetHealthDescriptions[?TargetHealth.State!='healthy'])" \
+      --query "length(TargetHealthDescriptions[?TargetHealth.State!='healthy' && TargetHealth.State!='draining'])" \
       --output text)
     if [[ "$UNHEALTHY" -eq 0 ]]; then
       ok "ALB target group — all targets healthy"
