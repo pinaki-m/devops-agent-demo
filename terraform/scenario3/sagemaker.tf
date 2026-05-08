@@ -60,22 +60,66 @@ resource "aws_iam_role_policy" "sagemaker_s3" {
   })
 }
 
+# ── ECR repository for custom inference container ────────────────────────────
+
+resource "aws_ecr_repository" "inference" {
+  name                 = "${local.name_prefix}-inference"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
+resource "aws_ecr_lifecycle_policy" "inference" {
+  repository = aws_ecr_repository.inference.name
+
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "Keep last 5 images"
+      selection = {
+        tagStatus   = "any"
+        countType   = "imageCountMoreThan"
+        countNumber = 5
+      }
+      action = { type = "expire" }
+    }]
+  })
+}
+
+# Allow SageMaker to pull from our own ECR repo
+resource "aws_ecr_repository_policy" "inference" {
+  repository = aws_ecr_repository.inference.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid    = "SageMakerPull"
+      Effect = "Allow"
+      Principal = {
+        Service = "sagemaker.amazonaws.com"
+      }
+      Action = [
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "ecr:BatchCheckLayerAvailability",
+      ]
+    }]
+  })
+}
+
 # ── SageMaker Model ───────────────────────────────────────────────────────────
-# Using a pre-built SKLearn container from ECR. Substitute model_data_url after
-# running the training job or uploading a model.tar.gz to S3.
 
 resource "aws_sagemaker_model" "main" {
   name               = "${local.name_prefix}-${var.model_name}"
   execution_role_arn = aws_iam_role.sagemaker_exec.arn
 
   primary_container {
-    # ap-southeast-2 SKLearn 1.2 inference image
-    image          = "544295431143.dkr.ecr.${var.aws_region}.amazonaws.com/sagemaker-scikit-learn:1.2-1-cpu-py3"
-    model_data_url = "s3://${aws_s3_bucket.model_artefacts.bucket}/models/${var.model_name}/model.tar.gz"
-    environment = {
-      SAGEMAKER_PROGRAM = "inference.py"
-    }
+    image = "${aws_ecr_repository.inference.repository_url}:latest"
   }
+
+  depends_on = [aws_ecr_repository_policy.inference]
 }
 
 # ── Endpoint Configuration ────────────────────────────────────────────────────

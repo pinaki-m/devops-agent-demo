@@ -13,3 +13,7 @@ output "model_artefacts_bucket" {
 output "sagemaker_role_arn" {
   value = aws_iam_role.sagemaker_exec.arn
 }
+
+output "inference_ecr_url" {
+  value = aws_ecr_repository.inference.repository_url
+}
