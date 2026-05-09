@@ -1,0 +1,19 @@
+name: emr-spark-job
+description: Submit a Spark job to EMR Serverless via MWAA Serverless
+
+tasks:
+  - name: submit-spark-job
+    type: AWS::EMRServerless::StartJobRun
+    properties:
+      ApplicationId: "{{ emr_application_id }}"
+      ExecutionRoleArn: "{{ emr_job_role_arn }}"
+      JobDriver:
+        SparkSubmit:
+          EntryPoint: "local:///usr/lib/spark/examples/jars/spark-examples.jar"
+          EntryPointArguments:
+            - "10"
+          SparkSubmitParameters: "--class org.apache.spark.examples.SparkPi --conf spark.executor.cores=1 --conf spark.executor.memory=4g --conf spark.driver.cores=1 --conf spark.driver.memory=4g --conf spark.executor.instances=1"
+      ConfigurationOverrides:
+        MonitoringConfiguration:
+          S3MonitoringConfiguration:
+            LogUri: "s3://{{ mwaa_dags_bucket }}/emr-logs/"

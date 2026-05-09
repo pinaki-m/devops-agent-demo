@@ -23,12 +23,6 @@ variable "private_subnet_ids" {
   type        = list(string)
 }
 
-variable "mwaa_max_webservers" {
-  description = "MWAA max webserver count (mw1.small requires >= 2)"
-  type        = number
-  default     = 2
-}
-
 variable "emr_release_label" {
   description = "EMR Serverless release label"
   type        = string

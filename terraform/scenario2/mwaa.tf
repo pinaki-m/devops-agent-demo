@@ -1,10 +1,12 @@
 locals {
-  name_prefix = "${var.project}-${var.environment}-s2"
+  name_prefix  = "${var.project}-${var.environment}-s2"
+  aws_cli      = "/usr/local/Cellar/awscli/2.34.45/libexec/bin/aws"
+  workflow_key = "workflows/emr-spark-job.yaml"
 }
 
 data "aws_caller_identity" "current" {}
 
-# ── S3 bucket for DAGs ───────────────────────────────────────────────────────
+# ── S3 bucket (DAGs + workflow definitions + EMR logs) ───────────────────────
 
 resource "aws_s3_bucket" "mwaa" {
   bucket = "${local.name_prefix}-mwaa-${data.aws_caller_identity.current.account_id}"
@@ -23,11 +25,20 @@ resource "aws_s3_bucket_public_access_block" "mwaa" {
   restrict_public_buckets = true
 }
 
+# ── Workflow definition uploaded to S3 ───────────────────────────────────────
+
+resource "aws_s3_object" "workflow" {
+  bucket = aws_s3_bucket.mwaa.id
+  key    = local.workflow_key
+  source = "${path.module}/../../src/scenario2/workflow.yaml"
+  etag   = filemd5("${path.module}/../../src/scenario2/workflow.yaml")
+}
+
 # ── Security Group ───────────────────────────────────────────────────────────
 
 resource "aws_security_group" "mwaa" {
   name        = "${local.name_prefix}-mwaa"
-  description = "MWAA environment security group"
+  description = "MWAA Serverless workflow security group"
   vpc_id      = var.vpc_id
 
   ingress {
@@ -53,7 +64,7 @@ data "aws_iam_policy_document" "mwaa_assume" {
     actions = ["sts:AssumeRole"]
     principals {
       type        = "Service"
-      identifiers = ["airflow.amazonaws.com", "airflow-env.amazonaws.com"]
+      identifiers = ["airflow-serverless.amazonaws.com"]
     }
   }
 }
@@ -64,7 +75,7 @@ resource "aws_iam_role" "mwaa" {
 }
 
 resource "aws_iam_role_policy" "mwaa" {
-  name = "mwaa-policy"
+  name = "mwaa-serverless-policy"
   role = aws_iam_role.mwaa.id
 
   policy = jsonencode({
@@ -77,8 +88,8 @@ resource "aws_iam_role_policy" "mwaa" {
       },
       {
         Effect   = "Allow"
-        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents", "logs:GetLogEvents", "logs:GetLogRecord", "logs:GetLogGroupFields", "logs:GetQueryResults"]
-        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:airflow-${local.name_prefix}-*"
+        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/mwaa-serverless/*"
       },
       {
         Effect   = "Allow"
@@ -87,67 +98,70 @@ resource "aws_iam_role_policy" "mwaa" {
       },
       {
         Effect   = "Allow"
-        Action   = ["sqs:ChangeMessageVisibility", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:GetQueueUrl", "sqs:ReceiveMessage", "sqs:SendMessage"]
-        Resource = "arn:aws:sqs:${var.aws_region}:*:airflow-celery-*"
-      },
-      {
-        Effect   = "Allow"
-        Action   = ["kms:Decrypt", "kms:DescribeKey", "kms:GenerateDataKey*", "kms:Encrypt"]
-        Resource = "*"
-        Condition = {
-          StringLike = {
-            "kms:ViaService" = ["sqs.${var.aws_region}.amazonaws.com"]
-          }
-        }
-      },
-      {
-        Effect   = "Allow"
         Action   = ["emr-serverless:StartJobRun", "emr-serverless:GetJobRun", "emr-serverless:CancelJobRun", "emr-serverless:ListJobRuns"]
         Resource = aws_emrserverless_application.spark.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["iam:PassRole"]
+        Resource = aws_iam_role.emr_job.arn
       }
     ]
   })
 }
 
-# ── MWAA Environment ─────────────────────────────────────────────────────────
+# ── MWAA Serverless workflow (via AWS CLI — no Terraform resource yet) ────────
 
-resource "aws_mwaa_environment" "main" {
-  name               = local.name_prefix
-  airflow_version    = "2.10.3"
-  environment_class  = "mw1.small"
-  min_webservers     = 2
-  max_webservers     = var.mwaa_max_webservers
-  execution_role_arn = aws_iam_role.mwaa.arn
-
-  source_bucket_arn    = aws_s3_bucket.mwaa.arn
-  dag_s3_path          = "dags/"
-  requirements_s3_path = "requirements.txt"
-
-  network_configuration {
-    security_group_ids = [aws_security_group.mwaa.id]
-    subnet_ids         = slice(var.private_subnet_ids, 0, 2)
+resource "null_resource" "mwaa_serverless_workflow" {
+  triggers = {
+    workflow_etag    = aws_s3_object.workflow.etag
+    role_arn         = aws_iam_role.mwaa.arn
+    security_groups  = aws_security_group.mwaa.id
+    subnets          = join(",", slice(var.private_subnet_ids, 0, 2))
+    workflow_name    = "${local.name_prefix}-emr-spark"
   }
 
-  logging_configuration {
-    dag_processing_logs {
-      enabled   = true
-      log_level = "INFO"
-    }
-    scheduler_logs {
-      enabled   = true
-      log_level = "INFO"
-    }
-    task_logs {
-      enabled   = true
-      log_level = "INFO"
-    }
-    webserver_logs {
-      enabled   = true
-      log_level = "INFO"
-    }
-    worker_logs {
-      enabled   = true
-      log_level = "INFO"
-    }
+  provisioner "local-exec" {
+    on_failure = continue
+    command    = <<-EOF
+      cat > /tmp/${local.name_prefix}-workflow.json <<'PAYLOAD'
+      ${jsonencode({
+        Name = "${local.name_prefix}-emr-spark"
+        DefinitionS3Location = {
+          Bucket    = aws_s3_bucket.mwaa.bucket
+          ObjectKey = local.workflow_key
+          VersionId = aws_s3_object.workflow.version_id
+        }
+        RoleArn       = aws_iam_role.mwaa.arn
+        EngineVersion = 1
+        TriggerMode   = "manual_only"
+        NetworkConfiguration = {
+          SecurityGroupIds = [aws_security_group.mwaa.id]
+          SubnetIds        = slice(var.private_subnet_ids, 0, 2)
+        }
+        Tags = {
+          Project     = var.project
+          Environment = var.environment
+        }
+      })}
+      PAYLOAD
+      ${local.aws_cli} mwaa-serverless create-workflow \
+        --region ${var.aws_region} \
+        --cli-input-json file:///tmp/${local.name_prefix}-workflow.json
+    EOF
   }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<-EOF
+      /usr/local/Cellar/awscli/2.34.45/libexec/bin/aws mwaa-serverless delete-workflow \
+        --name "${self.triggers.workflow_name}" \
+        --region ap-southeast-2 || true
+    EOF
+  }
+
+  depends_on = [
+    aws_s3_object.workflow,
+    aws_iam_role_policy.mwaa,
+  ]
 }
