@@ -122,8 +122,7 @@ resource "null_resource" "mwaa_serverless_workflow" {
   }
 
   provisioner "local-exec" {
-    on_failure = continue
-    command    = <<-EOF
+    command = <<-EOF
       cat > /tmp/${local.name_prefix}-workflow.json <<'PAYLOAD'
       ${jsonencode({
         Name = "${local.name_prefix}-emr-spark"

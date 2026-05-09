@@ -1,19 +1,22 @@
-name: emr-spark-job
-description: Submit a Spark job to EMR Serverless via MWAA Serverless
-
-tasks:
-  - name: submit-spark-job
-    type: AWS::EMRServerless::StartJobRun
-    properties:
-      ApplicationId: "{{ emr_application_id }}"
-      ExecutionRoleArn: "{{ emr_job_role_arn }}"
-      JobDriver:
-        SparkSubmit:
-          EntryPoint: "local:///usr/lib/spark/examples/jars/spark-examples.jar"
-          EntryPointArguments:
+emr_spark_job:
+  dag_id: emr_spark_job
+  description: "Submit a SparkPi job to EMR Serverless"
+  schedule_interval: "None"
+  start_date: "2025-01-01"
+  default_args:
+    retries: 1
+  tasks:
+    submit_spark_job:
+      operator: airflow.providers.amazon.aws.operators.emr.EmrServerlessStartJobOperator
+      application_id: "{{ var.value.emr_application_id }}"
+      execution_role_arn: "{{ var.value.emr_job_role_arn }}"
+      job_driver:
+        sparkSubmit:
+          entryPoint: "local:///usr/lib/spark/examples/jars/spark-examples.jar"
+          entryPointArguments:
             - "10"
-          SparkSubmitParameters: "--class org.apache.spark.examples.SparkPi --conf spark.executor.cores=1 --conf spark.executor.memory=4g --conf spark.driver.cores=1 --conf spark.driver.memory=4g --conf spark.executor.instances=1"
-      ConfigurationOverrides:
-        MonitoringConfiguration:
-          S3MonitoringConfiguration:
-            LogUri: "s3://{{ mwaa_dags_bucket }}/emr-logs/"
+          sparkSubmitParameters: "--class org.apache.spark.examples.SparkPi --conf spark.executor.cores=1 --conf spark.executor.memory=4g --conf spark.driver.cores=1 --conf spark.driver.memory=4g --conf spark.executor.instances=1"
+      config_overrides:
+        monitoringConfiguration:
+          s3MonitoringConfiguration:
+            logUri: "s3://{{ var.value.mwaa_dags_bucket }}/emr-logs/"
