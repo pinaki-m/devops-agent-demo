@@ -8,8 +8,8 @@ emr_spark_job:
   tasks:
     submit_spark_job:
       operator: airflow.providers.amazon.aws.operators.emr.EmrServerlessStartJobOperator
-      application_id: "{{ var.value.emr_application_id }}"
-      execution_role_arn: "{{ var.value.emr_job_role_arn }}"
+      application_id: "00g5hkuaf892fq29"
+      execution_role_arn: "arn:aws:iam::633867805930:role/devops-agent-demo-demo-s2-emr-job-exec"
       job_driver:
         sparkSubmit:
           entryPoint: "local:///usr/lib/spark/examples/jars/spark-examples.jar"
@@ -19,4 +19,4 @@ emr_spark_job:
       config_overrides:
         monitoringConfiguration:
           s3MonitoringConfiguration:
-            logUri: "s3://{{ var.value.mwaa_dags_bucket }}/emr-logs/"
+            logUri: "s3://devops-agent-demo-demo-s2-mwaa-633867805930/emr-logs/"
