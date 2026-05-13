@@ -77,4 +77,8 @@ resource "aws_emrserverless_application" "spark" {
     security_group_ids = [aws_security_group.mwaa.id]
     subnet_ids         = var.private_subnet_ids
   }
+
+  lifecycle {
+    ignore_changes = [initial_capacity, maximum_capacity]
+  }
 }
