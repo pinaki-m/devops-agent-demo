@@ -1,0 +1,50 @@
+# ── Secrets & local config ───────────────────────────────────────────────────
+.env.setup
+.env
+.env.*
+!.env.example
+
+# ── Terraform ────────────────────────────────────────────────────────────────
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/terraform.tfstate.d/
+**/tfplan
+**/crash.log
+**/override.tf
+**/override.tf.json
+**/*_override.tf
+**/*_override.tf.json
+
+# ── Lambda build artefacts ───────────────────────────────────────────────────
+src/scenario1/lambda.zip
+src/scenario1/package/
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# ── Docker ───────────────────────────────────────────────────────────────────
+.dockerignore
+
+# ── OS / editor ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── AWS credentials (never commit) ───────────────────────────────────────────
+.aws/

@@ -1,0 +1,70 @@
+name: Scenario 1 — Lambda Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/scenario1/**"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: "ap-southeast-2"
+  FUNCTION_NAME: "devops-agent-demo-demo-s1-processor"
+
+jobs:
+  deploy:
+    name: Package & Deploy Lambda
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/devops-agent-demo-demo-github-actions
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        working-directory: src/scenario1
+        run: |
+          pip install -r requirements.txt -t package/
+          cp *.py package/
+
+      - name: Package Lambda
+        working-directory: src/scenario1
+        run: |
+          cd package
+          zip -r ../lambda.zip .
+
+      - name: Update Lambda function code
+        run: |
+          aws lambda update-function-code \
+            --function-name ${{ env.FUNCTION_NAME }} \
+            --zip-file fileb://src/scenario1/lambda.zip \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Wait for update to complete
+        run: |
+          aws lambda wait function-updated \
+            --function-name ${{ env.FUNCTION_NAME }} \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Smoke test — invoke Lambda
+        run: |
+          aws lambda invoke \
+            --function-name ${{ env.FUNCTION_NAME }} \
+            --payload '{"source":"github-actions","action":"smoke-test"}' \
+            --cli-binary-format raw-in-base64-out \
+            --region ${{ env.AWS_REGION }} \
+            response.json
+          cat response.json

@@ -1,0 +1,22 @@
+emr_spark_job:
+  dag_id: emr_spark_job
+  description: "Submit a SparkPi job to EMR Serverless"
+  schedule: null
+  start_date: "2025-01-01"
+  default_args:
+    retries: 1
+  tasks:
+    submit_spark_job:
+      operator: airflow.providers.amazon.aws.operators.emr.EmrServerlessStartJobOperator
+      application_id: "00g5hkuaf892fq29"
+      execution_role_arn: "arn:aws:iam::633867805930:role/devops-agent-demo-demo-s2-emr-job-exec"
+      job_driver:
+        sparkSubmit:
+          entryPoint: "local:///usr/lib/spark/examples/jars/spark-examples.jar"
+          entryPointArguments:
+            - "10"
+          sparkSubmitParameters: "--class org.apache.spark.examples.SparkPi --conf spark.executor.cores=1 --conf spark.executor.memory=4g --conf spark.driver.cores=1 --conf spark.driver.memory=4g --conf spark.executor.instances=1"
+      configuration_overrides:
+        monitoringConfiguration:
+          s3MonitoringConfiguration:
+            logUri: "s3://devops-agent-demo-demo-s2-mwaa-633867805930/emr-logs/"
