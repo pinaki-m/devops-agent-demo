@@ -98,7 +98,7 @@ resource "aws_iam_role_policy" "mwaa" {
       },
       {
         Effect   = "Allow"
-        Action   = ["emr-serverless:StartJobRun", "emr-serverless:GetJobRun", "emr-serverless:CancelJobRun", "emr-serverless:ListJobRuns", "emr-serverless:GetApplication"]
+        Action   = ["emr-serverless:StartApplication", "emr-serverless:StopApplication", "emr-serverless:GetApplication", "emr-serverless:StartJobRun", "emr-serverless:GetJobRun", "emr-serverless:CancelJobRun", "emr-serverless:ListJobRuns"]
         Resource = [aws_emrserverless_application.spark.arn, "${aws_emrserverless_application.spark.arn}/jobruns/*"]
       },
       {
